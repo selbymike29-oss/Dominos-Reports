@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const SUPABASE_URL = "https://phjnysigcsvjbpllccps.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoan55c2lnY3N2amJwbGxjY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgxMjY0N30.q_PVeE4EEY8Vz63Mj62nAufkMzGZsiF7ynJ5NkfglgM";
@@ -17,6 +17,23 @@ async function sbFetch(path, options = {}) {
   if (!res.ok) throw new Error(await res.text());
   const text = await res.text();
   return text ? JSON.parse(text) : [];
+}
+
+async function uploadPhoto(file, folder) {
+  const ext = file.name.split(".").pop();
+  const filename = `${folder}/${Date.now()}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/reports-photos/${filename}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": file.type,
+      "x-upsert": "true",
+    },
+    body: file,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return `${SUPABASE_URL}/storage/v1/object/public/reports-photos/${filename}`;
 }
 
 const STORE_ACCOUNTS = [
@@ -44,7 +61,7 @@ const STORE_ACCOUNTS = [
   { id: "9664", name: "Store #9664", password: "Cube$$$2026" },
 ];
 
-const ADMIN_PASSWORD = "dominos_admin_2024";
+const ADMIN_PASSWORD = "TNL$$$2026";
 const CATEGORIES = ["New Hire", "Attendance Issue", "Maintenance Issue", "Other"];
 const STATUS_COLORS = {
   Open:          { bg: "#fff3cd", text: "#856404", dot: "#ffc107" },
@@ -74,6 +91,30 @@ const btnRed = {
   width: "100%", marginTop: 4, letterSpacing: 0.5,
 };
 
+function PhotoUpload({ label, value, onChange }) {
+  const ref = useRef();
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={labelStyle}>{label}</label>
+      <div onClick={() => ref.current.click()}
+        style={{ background: "#1a1a1a", border: "2px dashed #3a3a3a", borderRadius: 10, padding: "16px", textAlign: "center", cursor: "pointer", marginBottom: 4 }}>
+        {value ? (
+          <img src={typeof value === "string" ? value : URL.createObjectURL(value)} alt="preview"
+            style={{ maxWidth: "100%", maxHeight: 160, borderRadius: 8, objectFit: "cover" }} />
+        ) : (
+          <div>
+            <div style={{ fontSize: 28 }}>📷</div>
+            <div style={{ fontSize: 13, color: "#888", marginTop: 4 }}>Tap to take photo or upload</div>
+          </div>
+        )}
+      </div>
+      <input ref={ref} type="file" accept="image/*" capture="environment"
+        style={{ display: "none" }} onChange={e => onChange(e.target.files[0])} />
+      {value && <div style={{ fontSize: 11, color: "#198754", textAlign: "center" }}>✅ Photo selected</div>}
+    </div>
+  );
+}
+
 export default function App() {
   const [session, setSession]           = useState(null);
   const [loginInput, setLoginInput]     = useState({ store: STORE_ACCOUNTS[0].id, password: "" });
@@ -87,8 +128,13 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterStore, setFilterStore]   = useState("All");
   const [newNote, setNewNote]           = useState("");
-  const [form, setForm]                 = useState({ category: CATEGORIES[0], gm: "", details: "" });
-  const [submitted, setSubmitted]       = useState(false);
+  const [uploading, setUploading]       = useState(false);
+  const [form, setForm]                 = useState({
+    category: CATEGORIES[0], gm: "", details: "",
+    applicant_name: "", license_plate: "", insurance_note: "",
+    application_photo: null, insurance_photo: null,
+  });
+  const [submitted, setSubmitted] = useState(false);
 
   async function loadReports(sess) {
     setLoading(true);
@@ -117,22 +163,39 @@ export default function App() {
 
   async function submitReport() {
     if (!form.gm.trim() || !form.details.trim()) return;
+    setUploading(true);
     try {
+      let application_photo_url = null;
+      let insurance_photo_url = null;
+
+      if (form.application_photo) {
+        application_photo_url = await uploadPhoto(form.application_photo, "applications");
+      }
+      if (form.insurance_photo) {
+        insurance_photo_url = await uploadPhoto(form.insurance_photo, "insurance");
+      }
+
       await sbFetch("/reports", {
         method: "POST",
         body: JSON.stringify({
           store_id: session.store.id, store_name: session.store.name,
           gm: form.gm, category: form.category,
           details: form.details, status: "Open", notes: [],
+          applicant_name: form.applicant_name || null,
+          license_plate: form.license_plate || null,
+          insurance_note: form.insurance_note || null,
+          application_photo: application_photo_url,
+          insurance_photo: insurance_photo_url,
         }),
       });
-      setForm({ category: CATEGORIES[0], gm: "", details: "" });
+      setForm({ category: CATEGORIES[0], gm: "", details: "", applicant_name: "", license_plate: "", insurance_note: "", application_photo: null, insurance_photo: null });
       setSubmitted(true);
       setTimeout(async () => {
         setSubmitted(false); setView("dashboard");
         await loadReports(session);
       }, 1800);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); alert("Error submitting: " + e.message); }
+    setUploading(false);
   }
 
   async function updateStatus(id, status) {
@@ -172,7 +235,6 @@ export default function App() {
         <div style={{ fontWeight: 900, fontSize: 18, letterSpacing: 1 }}>GM Report Center</div>
         <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>Domino's Pizza</div>
       </div>
-
       <div style={{ width: "100%", maxWidth: 380, background: "#2a2a2a", borderRadius: 16, padding: 24, border: "1px solid #3a3a3a" }}>
         <div style={{ display: "flex", background: "#1a1a1a", borderRadius: 10, padding: 4, marginBottom: 20 }}>
           {["store", "admin"].map(m => (
@@ -182,25 +244,19 @@ export default function App() {
             </button>
           ))}
         </div>
-
         {loginMode === "store" && <>
           <label style={labelStyle}>Select Your Store</label>
           <select value={loginInput.store} onChange={e => setLoginInput(p => ({ ...p, store: e.target.value }))} style={inputStyle}>
             {STORE_ACCOUNTS.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </>}
-
         <label style={labelStyle}>Password</label>
-        <input type="password" placeholder="Enter password"
-          value={loginInput.password}
+        <input type="password" placeholder="Enter password" value={loginInput.password}
           onChange={e => setLoginInput(p => ({ ...p, password: e.target.value }))}
-          onKeyDown={e => e.key === "Enter" && handleLogin()}
-          style={inputStyle} />
-
+          onKeyDown={e => e.key === "Enter" && handleLogin()} style={inputStyle} />
         {loginError && <div style={{ color: "#e31837", fontSize: 13, marginBottom: 12, fontWeight: 600 }}>{loginError}</div>}
         <button onClick={handleLogin} style={btnRed}>Sign In</button>
       </div>
-
       <div style={{ marginTop: 18, fontSize: 12, color: "#555", textAlign: "center", maxWidth: 300 }}>
         Contact your admin if you need your store password.
       </div>
@@ -246,7 +302,6 @@ export default function App() {
               </div>
             ))}
           </div>
-
           <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
             {["All", ...CATEGORIES].map(cat => (
               <button key={cat} onClick={() => setFilterCat(cat)}
@@ -255,7 +310,6 @@ export default function App() {
               </button>
             ))}
           </div>
-
           {session.type === "admin" && allStoreNames.length > 0 && (
             <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 14 }}>
               {["All", ...allStoreNames].map(sn => (
@@ -266,7 +320,6 @@ export default function App() {
               ))}
             </div>
           )}
-
           {loading ? (
             <div style={{ textAlign: "center", color: "#666", padding: 40 }}>Loading…</div>
           ) : filtered.length === 0 ? (
@@ -281,6 +334,7 @@ export default function App() {
                 </div>
                 <span style={{ background: STATUS_COLORS[item.status].bg, color: STATUS_COLORS[item.status].text, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 10px", whiteSpace: "nowrap" }}>{item.status}</span>
               </div>
+              {item.applicant_name && <div style={{ fontSize: 13, color: "#e31837", fontWeight: 700, marginBottom: 4 }}>Applicant: {item.applicant_name}</div>}
               <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 6, lineHeight: 1.4 }}>{item.details.length > 80 ? item.details.slice(0, 80) + "…" : item.details}</div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#666" }}>
                 <span>GM: {item.gm}</span>
@@ -304,12 +358,45 @@ export default function App() {
               <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} style={inputStyle}>
                 {CATEGORIES.map(c => <option key={c}>{c}</option>)}
               </select>
+
+              {form.category === "New Hire" && <>
+                <div style={{ background: "#1e1e1e", borderRadius: 12, padding: 16, marginBottom: 14, border: "1px solid #e31837" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#e31837", marginBottom: 14, letterSpacing: 0.5 }}>🆕 NEW HIRE DETAILS</div>
+
+                  <label style={labelStyle}>Applicant Name</label>
+                  <input placeholder="Full name of applicant" value={form.applicant_name}
+                    onChange={e => setForm(f => ({ ...f, applicant_name: e.target.value }))} style={inputStyle} />
+
+                  <PhotoUpload label="📄 Photo of Application"
+                    value={form.application_photo}
+                    onChange={file => setForm(f => ({ ...f, application_photo: file }))} />
+
+                  <label style={labelStyle}>Car License Plate</label>
+                  <input placeholder="e.g. ABC 1234" value={form.license_plate}
+                    onChange={e => setForm(f => ({ ...f, license_plate: e.target.value }))} style={inputStyle} />
+
+                  <PhotoUpload label="🚗 Photo of Insurance Card / Declaration Page"
+                    value={form.insurance_photo}
+                    onChange={file => setForm(f => ({ ...f, insurance_photo: file }))} />
+
+                  <label style={labelStyle}>⚠️ Insurance Note (if applicant's name is NOT on card)</label>
+                  <textarea placeholder="e.g. Card is under John Smith — applicant's father. Applicant confirmed coverage."
+                    value={form.insurance_note}
+                    onChange={e => setForm(f => ({ ...f, insurance_note: e.target.value }))}
+                    rows={3} style={{ ...inputStyle, resize: "vertical" }} />
+                </div>
+              </>}
+
               <label style={labelStyle}>Your Name (GM)</label>
               <input placeholder="e.g. Maria Lopez" value={form.gm} onChange={e => setForm(f => ({ ...f, gm: e.target.value }))} style={inputStyle} />
-              <label style={labelStyle}>Details</label>
-              <textarea placeholder="Describe the issue or report…" value={form.details} onChange={e => setForm(f => ({ ...f, details: e.target.value }))} rows={5} style={{ ...inputStyle, resize: "vertical" }} />
-              <button onClick={submitReport} style={{ ...btnRed, background: form.gm && form.details ? "#e31837" : "#555", cursor: form.gm && form.details ? "pointer" : "not-allowed" }}>
-                Submit Report
+
+              <label style={labelStyle}>Additional Details</label>
+              <textarea placeholder="Any other notes…" value={form.details} onChange={e => setForm(f => ({ ...f, details: e.target.value }))} rows={4} style={{ ...inputStyle, resize: "vertical" }} />
+
+              <button onClick={submitReport}
+                disabled={uploading || !form.gm || !form.details}
+                style={{ ...btnRed, background: (!uploading && form.gm && form.details) ? "#e31837" : "#555", cursor: (!uploading && form.gm && form.details) ? "pointer" : "not-allowed" }}>
+                {uploading ? "Uploading…" : "Submit Report"}
               </button>
             </>}
           </div>
@@ -326,6 +413,40 @@ export default function App() {
               <div style={{ fontSize: 13, color: "#aaa", marginBottom: 4 }}>{selected.store_name} · GM: {selected.gm}</div>
               <div style={{ fontSize: 12, color: "#666", marginBottom: 12 }}>{formatDate(selected.created_at)}</div>
               <div style={{ fontSize: 15, color: "#f0ebe0", lineHeight: 1.6 }}>{selected.details}</div>
+
+              {selected.category === "New Hire" && (
+                <div style={{ marginTop: 16, background: "#1e1e1e", borderRadius: 12, padding: 16, border: "1px solid #e31837" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#e31837", marginBottom: 12 }}>🆕 NEW HIRE DETAILS</div>
+                  {selected.applicant_name && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Applicant:</span> {selected.applicant_name}</div>}
+                  {selected.license_plate && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>License Plate:</span> {selected.license_plate}</div>}
+                  {selected.insurance_note && (
+                    <div style={{ background: "#2a1a1a", borderRadius: 8, padding: 10, marginBottom: 12, border: "1px solid #e31837" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#e31837", marginBottom: 4 }}>⚠️ INSURANCE NOTE</div>
+                      <div style={{ fontSize: 13, color: "#f0ebe0" }}>{selected.insurance_note}</div>
+                    </div>
+                  )}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
+                    {selected.application_photo && (
+                      <div>
+                        <div style={{ fontSize: 11, color: "#aaa", marginBottom: 4 }}>Application</div>
+                        <a href={selected.application_photo} target="_blank" rel="noreferrer">
+                          <img src={selected.application_photo} alt="Application"
+                            style={{ width: "100%", borderRadius: 8, objectFit: "cover", maxHeight: 140 }} />
+                        </a>
+                      </div>
+                    )}
+                    {selected.insurance_photo && (
+                      <div>
+                        <div style={{ fontSize: 11, color: "#aaa", marginBottom: 4 }}>Insurance</div>
+                        <a href={selected.insurance_photo} target="_blank" rel="noreferrer">
+                          <img src={selected.insurance_photo} alt="Insurance"
+                            style={{ width: "100%", borderRadius: 8, objectFit: "cover", maxHeight: 140 }} />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ background: "#2a2a2a", borderRadius: 16, padding: 20, border: "1px solid #3a3a3a", marginBottom: 14 }}>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
 const SUPABASE_URL = "https://phjnysigcsvjbpllccps.supabase.co";
-const SUPABASE_KEY = "sb_publishable_ZeBP6iMwOuncNwUwFrCBEA_raN4ZpgQ";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoam55c2lnY3N2amJwbGxjY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3MjY2ODcsImV4cCI6MjA5NTMwMjY4N30.q_PVeE4EEY8Vz63Mj62nAufkMzGZsiF7ynJ5NkfglgM";
 
 async function sbFetch(path, options = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
@@ -125,7 +125,7 @@ export default function App() {
   const [loading, setLoading]           = useState(false);
   const [selected, setSelected]         = useState(null);
   const [filterCat, setFilterCat]       = useState("All");
-  const [filterStatus, setFilterStatus] = useState("All");
+  const [filterStatus, setFilterStatus] = useState("Active");
   const [filterStore, setFilterStore]   = useState("All");
   const [newNote, setNewNote]           = useState("");
   const [uploading, setUploading]       = useState(false);
@@ -214,9 +214,10 @@ export default function App() {
     setNewNote("");
   }
 
+  const isArchive = filterStatus === "Resolved";
   const filtered = submissions.filter(s =>
     (filterCat === "All"    || s.category   === filterCat) &&
-    (filterStatus === "All" || s.status     === filterStatus) &&
+    (filterStatus === "Active" ? (s.status === "Open" || s.status === "In Progress") : s.status === filterStatus) &&
     (filterStore === "All"  || s.store_name === filterStore)
   );
 
@@ -293,15 +294,32 @@ export default function App() {
       <div style={{ padding: "18px 16px", maxWidth: 620, margin: "0 auto" }}>
 
         {view === "dashboard" && <>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 18 }}>
-            {Object.entries(counts).map(([status, count]) => (
-              <div key={status} onClick={() => setFilterStatus(filterStatus === status ? "All" : status)}
-                style={{ background: filterStatus === status ? STATUS_COLORS[status].bg : "#2a2a2a", border: `2px solid ${filterStatus === status ? STATUS_COLORS[status].dot : "#3a3a3a"}`, borderRadius: 12, padding: "12px 8px", textAlign: "center", cursor: "pointer" }}>
-                <div style={{ fontSize: 28, fontWeight: 900, color: filterStatus === status ? STATUS_COLORS[status].text : "#f5f0e8" }}>{count}</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: filterStatus === status ? STATUS_COLORS[status].text : "#aaa" }}>{status}</div>
+          {/* Active / Archive toggle */}
+          <div style={{ display: "flex", background: "#2a2a2a", borderRadius: 12, padding: 4, marginBottom: 16, border: "1px solid #3a3a3a" }}>
+            <button onClick={() => setFilterStatus("Active")}
+              style={{ flex: 1, background: !isArchive ? "#e31837" : "transparent", color: !isArchive ? "#fff" : "#888", border: "none", borderRadius: 10, padding: "10px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+              📋 Active Reports
+            </button>
+            <button onClick={() => setFilterStatus("Resolved")}
+              style={{ flex: 1, background: isArchive ? "#198754" : "transparent", color: isArchive ? "#fff" : "#888", border: "none", borderRadius: 10, padding: "10px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+              ✅ Archive
+            </button>
+          </div>
+
+          {/* Stat tiles - only show on active */}
+          {!isArchive && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
+            {[["Open", counts.Open], ["In Progress", counts["In Progress"]]].map(([status, count]) => (
+              <div key={status}
+                style={{ background: "#2a2a2a", border: `2px solid ${STATUS_COLORS[status].dot}`, borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: 28, fontWeight: 900, color: "#f5f0e8" }}>{count}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: STATUS_COLORS[status].dot }}>{status}</div>
               </div>
             ))}
-          </div>
+          </div>}
+
+          {isArchive && <div style={{ background: "#1a2e1a", borderRadius: 12, padding: "12px 16px", marginBottom: 16, border: "1px solid #198754" }}>
+            <div style={{ fontSize: 13, color: "#198754", fontWeight: 700 }}>✅ {counts.Resolved} Resolved Report{counts.Resolved !== 1 ? "s" : ""} in Archive</div>
+          </div>}
           <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
             {["All", ...CATEGORIES].map(cat => (
               <button key={cat} onClick={() => setFilterCat(cat)}

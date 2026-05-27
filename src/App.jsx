@@ -1,34 +1,18 @@
- import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const SUPABASE_URL = "https://phjnysigcsvjbpllccps.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoam55c2lnY3N2amJwbGxjY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3MjY2ODcsImV4cCI6MjA5NTMwMjY4N30.q_PVeE4EEY8Vz63Mj62nAufkMzGZsiF7ynJ5NkfglgM";
-const RESEND_KEY = "re_NVmQAznh_JwtBB1NEkPA61iMhgj6912wZ";
-const HR_EMAIL = "Teamnextlevel.HR@hotmail.com";
-
-function storeEmail(storeId) {
-  return `Teamnextlevel.${storeId}@hotmail.com`;
-}
-
-async function sendEmail(to, subject, html) {
-  try {
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: "Dominos GM Reports <onboarding@resend.dev>",
-        to: Array.isArray(to) ? to : [to],
-        subject,
-        html,
-      }),
-    });
-  } catch (e) { console.error("Email error:", e); }
-}
 
 async function sbFetch(path, options = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {  },
+  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: options.prefer || "return=representation",
+      ...(options.headers || {}),
+    },
   });
   if (!res.ok) throw new Error(await res.text());
   const text = await res.text();

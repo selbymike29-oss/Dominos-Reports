@@ -6,6 +6,7 @@ const RESEND_KEY = "re_NVmQAznh_JwtBB1NEkPA61iMhgj6912wZ";
 const HR_EMAIL = "Teamnextlevel.HR@hotmail.com";
 
 function storeEmail(storeId) {
+  if (storeId === "1736") return "TNL1736@hotmail.com";
   return `Teamnextlevel.${storeId}@hotmail.com`;
 }
 
@@ -665,3 +666,4 @@ export default function App() {
     </div>
   );
 }
+

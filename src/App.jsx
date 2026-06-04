@@ -235,6 +235,7 @@ export default function App() {
           license_plate: form.license_plate || null,
           insurance_note: form.insurance_note || null,
           applicant_email: form.applicant_email || null,
+          store_email: storeEmail(session.store.id),
           application_photo: application_photo_url,
           dl_photo: dl_photo_url,
           insurance_photo: insurance_photo_url,
@@ -271,13 +272,16 @@ export default function App() {
     setSelected(prev => prev ? { ...prev, ...updateData } : prev);
 
     // Email store about status update
-    await sendEmail(storeEmail(storeId),
+    // Send congratulations email to applicant if Hired
+    const report = submissions.find(s => s.id === id);
+
+    // Send status update to store using stored email
+    const storeEmailAddr = report?.store_email || storeEmail(storeId);
+    await sendEmail(storeEmailAddr,
       `Report Update - ${status}`,
       `Your ${category} report has been updated.\nStore: ${storeName}\nNew Status: ${status}\n${reason ? "Reason: " + reason + "\n" : ""}${status === "Hired" ? "Congratulations! The new hire has been processed and approved.\n" : ""}${status === "In Progress" ? "The office is currently processing this report.\n" : ""}\nLog into the app to view full details.\n\n- Team Next Level HR`
     );
 
-    // Send congratulations email to applicant if Hired
-    const report = submissions.find(s => s.id === id);
     if (status === "Hired" && report && report.applicant_email) {
       await sendEmail(report.applicant_email,
         `Congratulations! Welcome to Team Next Level`,

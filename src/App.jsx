@@ -2,29 +2,38 @@ import { useState, useEffect, useRef } from "react";
 
 const SUPABASE_URL = "https://phjnysigcsvjbpllccps.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoam55c2lnY3N2amJwbGxjY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3MjY2ODcsImV4cCI6MjA5NTMwMjY4N30.q_PVeE4EEY8Vz63Mj62nAufkMzGZsiF7ynJ5NkfglgM";
-const RESEND_KEY = "re_NVmQAznh_JwtBB1NEkPA61iMhgj6912wZ";
 const HR_EMAIL = "Teamnextlevel.HR@hotmail.com";
+const EMAILJS_SERVICE_ID = "service_v2yl99l";
+const EMAILJS_TEMPLATE_ID = "template_454ylh7";
+const EMAILJS_PUBLIC_KEY = "1pwnQatq0FSxbbTKg";
 
 function storeEmail(storeId) {
   if (storeId === "1736") return "TNL1736@hotmail.com";
   return `Teamnextlevel.${storeId}@hotmail.com`;
 }
 
-async function sendEmail(to, subject, html) {
+async function sendEmail(to, subject, message) {
   try {
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_KEY}`,
-        "Content-Type": "application/json",
+    const toList = Array.isArray(to) ? to.join(",") : to;
+    const data = {
+      service_id: EMAILJS_SERVICE_ID,
+      template_id: EMAILJS_TEMPLATE_ID,
+      user_id: EMAILJS_PUBLIC_KEY,
+      accessToken: EMAILJS_PUBLIC_KEY,
+      template_params: {
+        to_email: toList,
+        subject: subject,
+        message: message,
+        from_name: "Dominos GM Reports",
       },
-      body: JSON.stringify({
-        from: "Dominos GM Reports <onboarding@resend.dev>",
-        to: Array.isArray(to) ? to : [to],
-        subject,
-        html,
-      }),
+    };
+    const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "origin": "http://localhost" },
+      body: JSON.stringify(data),
     });
+    const text = await res.text();
+    console.log("Email response:", res.status, text);
   } catch (e) { console.error("Email error:", e); }
 }
 
@@ -230,28 +239,14 @@ export default function App() {
 
       // Email HR
       await sendEmail(HR_EMAIL,
-        `🍕 New ${form.category} Report — ${session.store.name}`,
-        `<h2>New ${form.category} Report</h2>
-        <p><b>Store:</b> ${session.store.name}</p>
-        <p><b>GM:</b> ${form.gm}</p>
-        ${form.applicant_name ? `<p><b>Applicant:</b> ${form.applicant_name}</p>` : ""}
-        ${form.license_plate ? `<p><b>License Plate:</b> ${form.license_plate}</p>` : ""}
-        <p><b>Details:</b> ${form.details}</p>
-        ${form.insurance_note ? `<p><b>⚠️ Insurance Note:</b> ${form.insurance_note}</p>` : ""}
-        <p><b>Submitted:</b> ${new Date().toLocaleString()}</p>
-        <p>Log in to the GM Report Center to view and process this report.</p>`
+        `New ${form.category} Report - ${session.store.name}`,
+        `New ${form.category} Report\nStore: ${session.store.name}\nGM: ${form.gm}\n${form.applicant_name ? "Applicant: " + form.applicant_name + "\n" : ""}${form.license_plate ? "License Plate: " + form.license_plate + "\n" : ""}Details: ${form.details}\n${form.insurance_note ? "Insurance Note: " + form.insurance_note + "\n" : ""}Submitted: ${new Date().toLocaleString()}\n\nLog in to the GM Report Center to view and process this report.`
       );
 
       // Email store confirmation
       await sendEmail(storeEmail(session.store.id),
-        `✅ Report Received — ${form.category}`,
-        `<h2>Your Report Has Been Received</h2>
-        <p>Hi ${form.gm},</p>
-        <p>Your <b>${form.category}</b> report has been received by the office.</p>
-        ${form.applicant_name ? `<p><b>Applicant:</b> ${form.applicant_name}</p>` : ""}
-        <p><b>Details:</b> ${form.details}</p>
-        <p>You will receive an email when the status is updated. You can also check the app anytime.</p>
-        <p>— Team Next Level HR</p>`
+        `Report Received - ${form.category}`,
+        `Hi ${form.gm},\n\nYour ${form.category} report has been received by the office.\n${form.applicant_name ? "Applicant: " + form.applicant_name + "\n" : ""}Details: ${form.details}\n\nYou will receive an email when the status is updated.\n\n- Team Next Level HR`
       );
 
       setForm({ category: CATEGORIES[0], gm: "", details: "", applicant_name: "", license_plate: "", insurance_note: "", application_photo: null, insurance_photo: null });
@@ -272,18 +267,9 @@ export default function App() {
     setSelected(prev => prev ? { ...prev, ...updateData } : prev);
 
     // Email store about status update
-    const statusEmoji = status === "Hired" ? "🎉" : status === "Not Hired" ? "❌" : status === "In Progress" ? "⏳" : "📋";
     await sendEmail(storeEmail(storeId),
-      `${statusEmoji} Report Update — ${status}`,
-      `<h2>Your ${category} Report Has Been Updated</h2>
-      <p><b>Store:</b> ${storeName}</p>
-      <p><b>New Status:</b> ${status}</p>
-      ${reason ? `<p><b>Reason:</b> ${reason}</p>` : ""}
-      ${status === "Hired" ? "<p>🎉 Congratulations! The new hire has been processed and approved.</p>" : ""}
-      ${status === "Not Hired" ? `<p>Unfortunately this applicant will not be moving forward.<br><b>Reason:</b> ${reason}</p>` : ""}
-      ${status === "In Progress" ? "<p>The office is currently processing this report.</p>" : ""}
-      <p>Log into the app to view full details.</p>
-      <p>— Team Next Level HR</p>`
+      `Report Update - ${status}`,
+      `Your ${category} report has been updated.\nStore: ${storeName}\nNew Status: ${status}\n${reason ? "Reason: " + reason + "\n" : ""}${status === "Hired" ? "Congratulations! The new hire has been processed and approved.\n" : ""}${status === "Not Hired" ? "Unfortunately this applicant will not be moving forward.\n" : ""}${status === "In Progress" ? "The office is currently processing this report.\n" : ""}\nLog into the app to view full details.\n\n- Team Next Level HR`
     );
 
     setShowNotHired(false);

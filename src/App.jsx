@@ -184,8 +184,8 @@ export default function App() {
   const [showNotHired, setShowNotHired] = useState(false);
   const [form, setForm] = useState({
     category: CATEGORIES[0], gm: "", details: "",
-    applicant_name: "", license_plate: "", insurance_note: "",
-    application_photo: null, insurance_photo: null,
+    applicant_name: "", applicant_email: "", license_plate: "", insurance_note: "",
+    application_photo: null, dl_photo: null, insurance_photo: null,
   });
   const [submitted, setSubmitted] = useState(false);
 
@@ -220,7 +220,9 @@ export default function App() {
     try {
       let application_photo_url = null;
       let insurance_photo_url = null;
+      let dl_photo_url = null;
       if (form.application_photo) application_photo_url = await uploadPhoto(form.application_photo, "applications");
+      if (form.dl_photo) dl_photo_url = await uploadPhoto(form.dl_photo, "dl");
       if (form.insurance_photo) insurance_photo_url = await uploadPhoto(form.insurance_photo, "insurance");
 
       await sbFetch("/reports", {
@@ -232,7 +234,9 @@ export default function App() {
           applicant_name: form.applicant_name || null,
           license_plate: form.license_plate || null,
           insurance_note: form.insurance_note || null,
+          applicant_email: form.applicant_email || null,
           application_photo: application_photo_url,
+          dl_photo: dl_photo_url,
           insurance_photo: insurance_photo_url,
         }),
       });
@@ -269,8 +273,17 @@ export default function App() {
     // Email store about status update
     await sendEmail(storeEmail(storeId),
       `Report Update - ${status}`,
-      `Your ${category} report has been updated.\nStore: ${storeName}\nNew Status: ${status}\n${reason ? "Reason: " + reason + "\n" : ""}${status === "Hired" ? "Congratulations! The new hire has been processed and approved.\n" : ""}${status === "Not Hired" ? "Unfortunately this applicant will not be moving forward.\n" : ""}${status === "In Progress" ? "The office is currently processing this report.\n" : ""}\nLog into the app to view full details.\n\n- Team Next Level HR`
+      `Your ${category} report has been updated.\nStore: ${storeName}\nNew Status: ${status}\n${reason ? "Reason: " + reason + "\n" : ""}${status === "Hired" ? "Congratulations! The new hire has been processed and approved.\n" : ""}${status === "In Progress" ? "The office is currently processing this report.\n" : ""}\nLog into the app to view full details.\n\n- Team Next Level HR`
     );
+
+    // Send congratulations email to applicant if Hired
+    const report = submissions.find(s => s.id === id);
+    if (status === "Hired" && report && report.applicant_email) {
+      await sendEmail(report.applicant_email,
+        `Congratulations! Welcome to Team Next Level`,
+        `Dear ${report.applicant_name || "Applicant"},\n\nCongratulations! We are excited to welcome you to the Team Next Level family.\n\nSomeone from our team will be reaching out to you shortly with next steps.\n\nWe look forward to working with you!\n\n- Team Next Level HR\nTeamnextlevel.HR@hotmail.com`
+      );
+    }
 
     setShowNotHired(false);
   }
@@ -297,10 +310,12 @@ export default function App() {
   const filtered = submissions.filter(s => {
     const active = ["Open", "In Progress"].includes(s.status);
     const archived = ["Resolved", "Hired", "Not Hired"].includes(s.status);
-    const matchesSearch = !searchQuery || 
+    const matchesSearch = !searchQuery.trim() || 
       (s.applicant_name && s.applicant_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (s.applicant_email && s.applicant_email.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (s.gm && s.gm.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (s.details && s.details.toLowerCase().includes(searchQuery.toLowerCase()));
+      (s.details && s.details.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (s.store_name && s.store_name.toLowerCase().includes(searchQuery.toLowerCase()));
     return (
       (isArchive ? archived : active) &&
       (filterCat === "All" || s.category === filterCat) &&
@@ -491,8 +506,13 @@ export default function App() {
                   <label style={labelStyle}>Applicant Name</label>
                   <input placeholder="Full name of applicant" value={form.applicant_name}
                     onChange={e => setForm(f => ({ ...f, applicant_name: e.target.value }))} style={inputStyle} />
+                  <label style={labelStyle}>Applicant Email</label>
+                  <input placeholder="e.g. john.smith@email.com" value={form.applicant_email}
+                    onChange={e => setForm(f => ({ ...f, applicant_email: e.target.value }))} style={inputStyle} />
                   <PhotoUpload label="📄 Photo of Application" value={form.application_photo}
                     onChange={file => setForm(f => ({ ...f, application_photo: file }))} />
+                  <PhotoUpload label="🪪 Photo of Driver's License" value={form.dl_photo}
+                    onChange={file => setForm(f => ({ ...f, dl_photo: file }))} />
                   <label style={labelStyle}>Car License Plate</label>
                   <input placeholder="e.g. ABC 1234" value={form.license_plate}
                     onChange={e => setForm(f => ({ ...f, license_plate: e.target.value }))} style={inputStyle} />
@@ -541,6 +561,7 @@ export default function App() {
                 <div style={{ marginTop: 16, background: "#1e1e1e", borderRadius: 12, padding: 16, border: "1px solid #e31837" }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#e31837", marginBottom: 12 }}>🆕 NEW HIRE DETAILS</div>
                   {selected.applicant_name && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Applicant:</span> {selected.applicant_name}</div>}
+                  {selected.applicant_email && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Email:</span> {selected.applicant_email}</div>}
                   {selected.license_plate && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>License Plate:</span> {selected.license_plate}</div>}
                   {selected.insurance_note && (
                     <div style={{ background: "#2a1a1a", borderRadius: 8, padding: 10, marginBottom: 12, border: "1px solid #e31837" }}>
@@ -559,6 +580,14 @@ export default function App() {
                         <div style={{ fontSize: 11, color: "#aaa", marginBottom: 4 }}>Application</div>
                         <a href={selected.application_photo} target="_blank" rel="noreferrer">
                           <img src={selected.application_photo} alt="Application" style={{ width: "100%", borderRadius: 8, objectFit: "cover", maxHeight: 140 }} />
+                        </a>
+                      </div>
+                    )}
+                    {selected.dl_photo && (
+                      <div>
+                        <div style={{ fontSize: 11, color: "#aaa", marginBottom: 4 }}>Driver's License</div>
+                        <a href={selected.dl_photo} target="_blank" rel="noreferrer">
+                          <img src={selected.dl_photo} alt="DL" style={{ width: "100%", borderRadius: 8, objectFit: "cover", maxHeight: 140 }} />
                         </a>
                       </div>
                     )}

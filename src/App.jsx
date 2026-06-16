@@ -96,7 +96,7 @@ const STORE_ACCOUNTS = [
 ];
 
 const ADMIN_PASSWORD = "TNL$$$2026";
-const CATEGORIES = ["New Hire", "Attendance Issue", "Maintenance Issue", "Other"];
+const CATEGORIES = ["New Hire", "Attendance Issue", "Maintenance Issue", "Coaching", "Other"];
 const STATUS_COLORS = {
   Open:          { bg: "#fff3cd", text: "#856404", dot: "#ffc107" },
   "In Progress": { bg: "#cfe2ff", text: "#084298", dot: "#0d6efd" },
@@ -184,7 +184,7 @@ export default function App() {
   const [showNotHired, setShowNotHired] = useState(false);
   const [form, setForm] = useState({
     category: CATEGORIES[0], gm: "", details: "",
-    applicant_name: "", applicant_email: "", license_plate: "", insurance_note: "",
+    applicant_name: "", applicant_email: "", license_plate: "", insurance_note: "", coaching_member: "", coaching_manager: "", coaching_date: "", coaching_action: "",
     application_photo: null, dl_photo: null, insurance_photo: null,
   });
   const [submitted, setSubmitted] = useState(false);
@@ -235,6 +235,10 @@ export default function App() {
           license_plate: form.license_plate || null,
           insurance_note: form.insurance_note || null,
           applicant_email: form.applicant_email || null,
+          coaching_member: form.coaching_member || null,
+          coaching_manager: form.coaching_manager || null,
+          coaching_date: form.coaching_date || null,
+          coaching_action: form.coaching_action || null,
           store_email: storeEmail(session.store.id),
           application_photo: application_photo_url,
           dl_photo: dl_photo_url,
@@ -504,6 +508,27 @@ export default function App() {
                 {CATEGORIES.map(c => <option key={c}>{c}</option>)}
               </select>
 
+              {form.category === "Coaching" && (
+                <div style={{ background: "#1e1e1e", borderRadius: 12, padding: 16, marginBottom: 14, border: "1px solid #0d6efd" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#0d6efd", marginBottom: 14 }}>📋 COACHING DETAILS</div>
+                  <label style={labelStyle}>Team Member Name</label>
+                  <input placeholder="Full name of team member" value={form.coaching_member}
+                    onChange={e => setForm(f => ({ ...f, coaching_member: e.target.value }))} style={inputStyle} />
+                  <label style={labelStyle}>Manager on Duty</label>
+                  <input placeholder="Manager's name" value={form.coaching_manager}
+                    onChange={e => setForm(f => ({ ...f, coaching_manager: e.target.value }))} style={inputStyle} />
+                  <label style={labelStyle}>Date of Incident</label>
+                  <input type="date" value={form.coaching_date}
+                    onChange={e => setForm(f => ({ ...f, coaching_date: e.target.value }))} style={inputStyle} />
+                  <label style={labelStyle}>Action Plan</label>
+                  <textarea placeholder="Describe the action plan..." value={form.coaching_action}
+                    onChange={e => setForm(f => ({ ...f, coaching_action: e.target.value }))}
+                    rows={3} style={{ ...inputStyle, resize: "vertical" }} />
+                  <PhotoUpload label="📷 Supporting Photo (optional)" value={form.application_photo}
+                    onChange={file => setForm(f => ({ ...f, application_photo: file }))} />
+                </div>
+              )}
+
               {form.category === "New Hire" && (
                 <div style={{ background: "#1e1e1e", borderRadius: 12, padding: 16, marginBottom: 14, border: "1px solid #e31837" }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#e31837", marginBottom: 14 }}>🆕 NEW HIRE DETAILS</div>
@@ -553,6 +578,16 @@ export default function App() {
               <div style={{ fontSize: 13, color: "#aaa", marginBottom: 4 }}>{selected.store_name} · GM: {selected.gm}</div>
               <div style={{ fontSize: 12, color: "#666", marginBottom: 12 }}>{formatDate(selected.created_at)}</div>
               <div style={{ fontSize: 15, color: "#f0ebe0", lineHeight: 1.6 }}>{selected.details}</div>
+
+              {selected.category === "Coaching" && (selected.coaching_member || selected.coaching_manager || selected.coaching_date || selected.coaching_action) && (
+                <div style={{ marginTop: 16, background: "#1e1e1e", borderRadius: 12, padding: 16, border: "1px solid #0d6efd" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#0d6efd", marginBottom: 12 }}>📋 COACHING DETAILS</div>
+                  {selected.coaching_member && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Team Member:</span> {selected.coaching_member}</div>}
+                  {selected.coaching_manager && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Manager on Duty:</span> {selected.coaching_manager}</div>}
+                  {selected.coaching_date && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Date of Incident:</span> {selected.coaching_date}</div>}
+                  {selected.coaching_action && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Action Plan:</span> {selected.coaching_action}</div>}
+                </div>
+              )}
 
               {selected.not_hired_reason && (
                 <div style={{ background: "#2a1a1a", borderRadius: 8, padding: 10, marginTop: 12, border: "1px solid #dc3545" }}>
@@ -685,4 +720,3 @@ export default function App() {
     </div>
   );
 }
-

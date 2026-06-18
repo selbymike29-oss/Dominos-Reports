@@ -96,7 +96,7 @@ const STORE_ACCOUNTS = [
 ];
 
 const ADMIN_PASSWORD = "TNL$$$2026";
-const CATEGORIES = ["New Hire", "Attendance Issue", "Maintenance Issue", "Coaching", "Other"];
+const CATEGORIES = ["New Hire", "Attendance Issue", "Maintenance Issue", "Coaching", "Vehicle Incident", "Paid Out", "Bad Order Log", "Master Data Update", "Pay Raise", "Other"];
 const STATUS_COLORS = {
   Open:          { bg: "#fff3cd", text: "#856404", dot: "#ffc107" },
   "In Progress": { bg: "#cfe2ff", text: "#084298", dot: "#0d6efd" },
@@ -221,9 +221,26 @@ export default function App() {
       let application_photo_url = null;
       let insurance_photo_url = null;
       let dl_photo_url = null;
+      let incident_photo_url = null;
+      let paidout_receipt_url = null;
+      let masterdata_insurance_url = null;
+      let masterdata_dl_url = null;
+      let raise_eval_url = null;
       if (form.application_photo) application_photo_url = await uploadPhoto(form.application_photo, "applications");
       if (form.dl_photo) dl_photo_url = await uploadPhoto(form.dl_photo, "dl");
       if (form.insurance_photo) insurance_photo_url = await uploadPhoto(form.insurance_photo, "insurance");
+      if (form.incident_photo) incident_photo_url = await uploadPhoto(form.incident_photo, "incidents");
+      if (form.paidout_receipt) paidout_receipt_url = await uploadPhoto(form.paidout_receipt, "paidouts");
+      if (form.masterdata_insurance) masterdata_insurance_url = await uploadPhoto(form.masterdata_insurance, "masterdata");
+      if (form.masterdata_dl) masterdata_dl_url = await uploadPhoto(form.masterdata_dl, "masterdata");
+      if (form.raise_eval) raise_eval_url = await uploadPhoto(form.raise_eval, "raises");
+      // Handle bad order photos
+      let badordersWithPhotos = [];
+      for (const bo of form.badorders) {
+        let boPhotoUrl = null;
+        if (bo.photo) boPhotoUrl = await uploadPhoto(bo.photo, "badorders");
+        badordersWithPhotos.push({ order_number: bo.order_number, reason: bo.reason, photo: boPhotoUrl });
+      }
 
       await sbFetch("/reports", {
         method: "POST",
@@ -239,6 +256,23 @@ export default function App() {
           coaching_manager: form.coaching_manager || null,
           coaching_date: form.coaching_date || null,
           coaching_action: form.coaching_action || null,
+          incident_tm: form.incident_tm || null,
+          incident_mgr: form.incident_mgr || null,
+          incident_description: form.incident_description || null,
+          incident_medical: form.incident_medical || false,
+          incident_photo: incident_photo_url,
+          paidout_amount: form.paidout_amount || null,
+          paidout_approver: form.paidout_approver || null,
+          paidout_receipt: paidout_receipt_url,
+          badorders: badordersWithPhotos,
+          masterdata_tm: form.masterdata_tm || null,
+          masterdata_address: form.masterdata_address || null,
+          masterdata_insurance: masterdata_insurance_url,
+          masterdata_dl: masterdata_dl_url,
+          raise_tm: form.raise_tm || null,
+          raise_mgr: form.raise_mgr || null,
+          raise_details: form.raise_details || null,
+          raise_eval: raise_eval_url,
           store_email: storeEmail(session.store.id),
           application_photo: application_photo_url,
           dl_photo: dl_photo_url,
@@ -529,6 +563,114 @@ export default function App() {
                 </div>
               )}
 
+              {form.category === "Vehicle Incident" && (
+                <div style={{ background: "#1e1e1e", borderRadius: 12, padding: 16, marginBottom: 14, border: "1px solid #ffc107" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#ffc107", marginBottom: 14 }}>🚗 VEHICLE INCIDENT DETAILS</div>
+                  <label style={labelStyle}>Team Member Name</label>
+                  <input placeholder="TM involved in incident" value={form.incident_tm}
+                    onChange={e => setForm(f => ({ ...f, incident_tm: e.target.value }))} style={inputStyle} />
+                  <label style={labelStyle}>Manager on Duty</label>
+                  <input placeholder="Manager's name" value={form.incident_mgr}
+                    onChange={e => setForm(f => ({ ...f, incident_mgr: e.target.value }))} style={inputStyle} />
+                  <label style={labelStyle}>Description of Incident</label>
+                  <textarea placeholder="What happened, other vehicle info, location..." value={form.incident_description}
+                    onChange={e => setForm(f => ({ ...f, incident_description: e.target.value }))}
+                    rows={4} style={{ ...inputStyle, resize: "vertical" }} />
+                  <div style={{ background: "#2a2a2a", borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                    <label style={labelStyle}>Was Medical Attention Needed?</label>
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <button type="button" onClick={() => setForm(f => ({ ...f, incident_medical: true }))}
+                        style={{ flex: 1, background: form.incident_medical ? "#dc3545" : "#3a3a3a", color: "#fff", border: "none", borderRadius: 10, padding: "10px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                        Yes
+                      </button>
+                      <button type="button" onClick={() => setForm(f => ({ ...f, incident_medical: false }))}
+                        style={{ flex: 1, background: !form.incident_medical ? "#198754" : "#3a3a3a", color: "#fff", border: "none", borderRadius: 10, padding: "10px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                        No
+                      </button>
+                    </div>
+                  </div>
+                  <PhotoUpload label="📷 Photo of Damage" value={form.incident_photo}
+                    onChange={file => setForm(f => ({ ...f, incident_photo: file }))} />
+                </div>
+              )}
+
+              {form.category === "Paid Out" && (
+                <div style={{ background: "#1e1e1e", borderRadius: 12, padding: 16, marginBottom: 14, border: "1px solid #198754" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#198754", marginBottom: 14 }}>💵 PAID OUT DETAILS</div>
+                  <label style={labelStyle}>Amount ($)</label>
+                  <input placeholder="e.g. 24.99" type="number" value={form.paidout_amount}
+                    onChange={e => setForm(f => ({ ...f, paidout_amount: e.target.value }))} style={inputStyle} />
+                  <label style={labelStyle}>Approved By</label>
+                  <input placeholder="Manager who approved" value={form.paidout_approver}
+                    onChange={e => setForm(f => ({ ...f, paidout_approver: e.target.value }))} style={inputStyle} />
+                  <PhotoUpload label="📄 Upload Receipt" value={form.paidout_receipt}
+                    onChange={file => setForm(f => ({ ...f, paidout_receipt: file }))} />
+                </div>
+              )}
+
+              {form.category === "Bad Order Log" && (
+                <div style={{ background: "#1e1e1e", borderRadius: 12, padding: 16, marginBottom: 14, border: "1px solid #fd7e14" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fd7e14", marginBottom: 14 }}>❌ BAD ORDER LOG</div>
+                  {form.badorders.map((bo, i) => (
+                    <div key={i} style={{ background: "#2a2a2a", borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#fd7e14", marginBottom: 10 }}>Order {i + 1}</div>
+                      <label style={labelStyle}>Order Number</label>
+                      <input placeholder="Order #" value={bo.order_number}
+                        onChange={e => setForm(f => ({ ...f, badorders: f.badorders.map((b, j) => j === i ? { ...b, order_number: e.target.value } : b) }))} style={inputStyle} />
+                      <label style={labelStyle}>Reason</label>
+                      <input placeholder="Why was it bad ordered or canceled?" value={bo.reason}
+                        onChange={e => setForm(f => ({ ...f, badorders: f.badorders.map((b, j) => j === i ? { ...b, reason: e.target.value } : b) }))} style={inputStyle} />
+                      <PhotoUpload label="📷 Photo (optional)" value={bo.photo}
+                        onChange={file => setForm(f => ({ ...f, badorders: f.badorders.map((b, j) => j === i ? { ...b, photo: file } : b) }))} />
+                      {form.badorders.length > 1 && (
+                        <button type="button" onClick={() => setForm(f => ({ ...f, badorders: f.badorders.filter((_, j) => j !== i) }))}
+                          style={{ background: "#dc3545", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setForm(f => ({ ...f, badorders: [...f.badorders, { order_number: "", reason: "", photo: null }] }))}
+                    style={{ background: "#fd7e14", color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 13, cursor: "pointer", fontWeight: 700, width: "100%" }}>
+                    + Add Another Order
+                  </button>
+                </div>
+              )}
+
+              {form.category === "Master Data Update" && (
+                <div style={{ background: "#1e1e1e", borderRadius: 12, padding: 16, marginBottom: 14, border: "1px solid #6f42c1" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#6f42c1", marginBottom: 14 }}>📝 MASTER DATA UPDATE</div>
+                  <label style={labelStyle}>Team Member Name</label>
+                  <input placeholder="TM whose info is changing" value={form.masterdata_tm}
+                    onChange={e => setForm(f => ({ ...f, masterdata_tm: e.target.value }))} style={inputStyle} />
+                  <label style={labelStyle}>New Address (if applicable)</label>
+                  <input placeholder="New address" value={form.masterdata_address}
+                    onChange={e => setForm(f => ({ ...f, masterdata_address: e.target.value }))} style={inputStyle} />
+                  <PhotoUpload label="🚗 New Insurance Card (if applicable)" value={form.masterdata_insurance}
+                    onChange={file => setForm(f => ({ ...f, masterdata_insurance: file }))} />
+                  <PhotoUpload label="🪪 New Driver's License (if applicable)" value={form.masterdata_dl}
+                    onChange={file => setForm(f => ({ ...f, masterdata_dl: file }))} />
+                </div>
+              )}
+
+              {form.category === "Pay Raise" && (
+                <div style={{ background: "#1e1e1e", borderRadius: 12, padding: 16, marginBottom: 14, border: "1px solid #20c997" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#20c997", marginBottom: 14 }}>💰 PAY RAISE REQUEST</div>
+                  <label style={labelStyle}>Team Member Name</label>
+                  <input placeholder="TM requesting raise" value={form.raise_tm}
+                    onChange={e => setForm(f => ({ ...f, raise_tm: e.target.value }))} style={inputStyle} />
+                  <label style={labelStyle}>Manager Name</label>
+                  <input placeholder="Requesting manager" value={form.raise_mgr}
+                    onChange={e => setForm(f => ({ ...f, raise_mgr: e.target.value }))} style={inputStyle} />
+                  <label style={labelStyle}>Reason for Raise</label>
+                  <textarea placeholder="Brief details on why they deserve the raise..." value={form.raise_details}
+                    onChange={e => setForm(f => ({ ...f, raise_details: e.target.value }))}
+                    rows={3} style={{ ...inputStyle, resize: "vertical" }} />
+                  <PhotoUpload label="📄 Upload Evaluation" value={form.raise_eval}
+                    onChange={file => setForm(f => ({ ...f, raise_eval: file }))} />
+                </div>
+              )}
+
               {form.category === "New Hire" && (
                 <div style={{ background: "#1e1e1e", borderRadius: 12, padding: 16, marginBottom: 14, border: "1px solid #e31837" }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#e31837", marginBottom: 14 }}>🆕 NEW HIRE DETAILS</div>
@@ -578,6 +720,62 @@ export default function App() {
               <div style={{ fontSize: 13, color: "#aaa", marginBottom: 4 }}>{selected.store_name} · GM: {selected.gm}</div>
               <div style={{ fontSize: 12, color: "#666", marginBottom: 12 }}>{formatDate(selected.created_at)}</div>
               <div style={{ fontSize: 15, color: "#f0ebe0", lineHeight: 1.6 }}>{selected.details}</div>
+
+              {selected.category === "Vehicle Incident" && (
+                <div style={{ marginTop: 16, background: "#1e1e1e", borderRadius: 12, padding: 16, border: "1px solid #ffc107" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#ffc107", marginBottom: 12 }}>🚗 VEHICLE INCIDENT</div>
+                  {selected.incident_tm && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Team Member:</span> {selected.incident_tm}</div>}
+                  {selected.incident_mgr && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Manager on Duty:</span> {selected.incident_mgr}</div>}
+                  <div style={{ fontSize: 14, marginBottom: 8 }}><span style={{ color: "#aaa" }}>Medical Attention:</span> <span style={{ color: selected.incident_medical ? "#dc3545" : "#198754", fontWeight: 700 }}>{selected.incident_medical ? "YES" : "No"}</span></div>
+                  {selected.incident_description && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Description:</span> {selected.incident_description}</div>}
+                  {selected.incident_photo && <a href={selected.incident_photo} target="_blank" rel="noreferrer"><img src={selected.incident_photo} alt="Incident" style={{ width: "100%", borderRadius: 8, marginTop: 8, maxHeight: 180, objectFit: "cover" }} /></a>}
+                </div>
+              )}
+
+              {selected.category === "Paid Out" && (
+                <div style={{ marginTop: 16, background: "#1e1e1e", borderRadius: 12, padding: 16, border: "1px solid #198754" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#198754", marginBottom: 12 }}>💵 PAID OUT</div>
+                  {selected.paidout_amount && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Amount:</span> ${selected.paidout_amount}</div>}
+                  {selected.paidout_approver && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Approved By:</span> {selected.paidout_approver}</div>}
+                  {selected.paidout_receipt && <a href={selected.paidout_receipt} target="_blank" rel="noreferrer"><img src={selected.paidout_receipt} alt="Receipt" style={{ width: "100%", borderRadius: 8, marginTop: 8, maxHeight: 180, objectFit: "cover" }} /></a>}
+                </div>
+              )}
+
+              {selected.category === "Bad Order Log" && selected.badorders && selected.badorders.length > 0 && (
+                <div style={{ marginTop: 16, background: "#1e1e1e", borderRadius: 12, padding: 16, border: "1px solid #fd7e14" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fd7e14", marginBottom: 12 }}>❌ BAD ORDER LOG</div>
+                  {selected.badorders.map((bo, i) => (
+                    <div key={i} style={{ background: "#2a2a2a", borderRadius: 8, padding: 12, marginBottom: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#fd7e14", marginBottom: 6 }}>Order {i + 1}</div>
+                      {bo.order_number && <div style={{ fontSize: 13, color: "#f0ebe0", marginBottom: 4 }}><span style={{ color: "#aaa" }}>Order #:</span> {bo.order_number}</div>}
+                      {bo.reason && <div style={{ fontSize: 13, color: "#f0ebe0", marginBottom: 4 }}><span style={{ color: "#aaa" }}>Reason:</span> {bo.reason}</div>}
+                      {bo.photo && <a href={bo.photo} target="_blank" rel="noreferrer"><img src={bo.photo} alt="Bad Order" style={{ width: "100%", borderRadius: 6, marginTop: 6, maxHeight: 120, objectFit: "cover" }} /></a>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selected.category === "Master Data Update" && (
+                <div style={{ marginTop: 16, background: "#1e1e1e", borderRadius: 12, padding: 16, border: "1px solid #6f42c1" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#6f42c1", marginBottom: 12 }}>📝 MASTER DATA UPDATE</div>
+                  {selected.masterdata_tm && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Team Member:</span> {selected.masterdata_tm}</div>}
+                  {selected.masterdata_address && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>New Address:</span> {selected.masterdata_address}</div>}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
+                    {selected.masterdata_insurance && <div><div style={{ fontSize: 11, color: "#aaa", marginBottom: 4 }}>Insurance Card</div><a href={selected.masterdata_insurance} target="_blank" rel="noreferrer"><img src={selected.masterdata_insurance} alt="Insurance" style={{ width: "100%", borderRadius: 8, objectFit: "cover", maxHeight: 140 }} /></a></div>}
+                    {selected.masterdata_dl && <div><div style={{ fontSize: 11, color: "#aaa", marginBottom: 4 }}>Driver's License</div><a href={selected.masterdata_dl} target="_blank" rel="noreferrer"><img src={selected.masterdata_dl} alt="DL" style={{ width: "100%", borderRadius: 8, objectFit: "cover", maxHeight: 140 }} /></a></div>}
+                  </div>
+                </div>
+              )}
+
+              {selected.category === "Pay Raise" && (
+                <div style={{ marginTop: 16, background: "#1e1e1e", borderRadius: 12, padding: 16, border: "1px solid #20c997" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#20c997", marginBottom: 12 }}>💰 PAY RAISE REQUEST</div>
+                  {selected.raise_tm && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Team Member:</span> {selected.raise_tm}</div>}
+                  {selected.raise_mgr && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Manager:</span> {selected.raise_mgr}</div>}
+                  {selected.raise_details && <div style={{ fontSize: 14, color: "#f0ebe0", marginBottom: 8 }}><span style={{ color: "#aaa" }}>Reason:</span> {selected.raise_details}</div>}
+                  {selected.raise_eval && <a href={selected.raise_eval} target="_blank" rel="noreferrer"><img src={selected.raise_eval} alt="Evaluation" style={{ width: "100%", borderRadius: 8, marginTop: 8, maxHeight: 180, objectFit: "cover" }} /></a>}
+                </div>
+              )}
 
               {selected.category === "Coaching" && (selected.coaching_member || selected.coaching_manager || selected.coaching_date || selected.coaching_action) && (
                 <div style={{ marginTop: 16, background: "#1e1e1e", borderRadius: 12, padding: 16, border: "1px solid #0d6efd" }}>

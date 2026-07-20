@@ -186,6 +186,7 @@ export default function App() {
     category: CATEGORIES[0], gm: "", details: "",
     applicant_name: "", applicant_email: "", license_plate: "", insurance_note: "", coaching_member: "", coaching_manager: "", coaching_date: "", coaching_action: "",
     application_photo: null, dl_photo: null, insurance_photo: null,
+    badorders: [{ order_number: "", reason: "", photo: null }],
   });
   const [submitted, setSubmitted] = useState(false);
 
@@ -236,10 +237,13 @@ export default function App() {
       if (form.raise_eval) raise_eval_url = await uploadPhoto(form.raise_eval, "raises");
       // Handle bad order photos
       let badordersWithPhotos = [];
-      for (const bo of form.badorders) {
-        let boPhotoUrl = null;
-        if (bo.photo) boPhotoUrl = await uploadPhoto(bo.photo, "badorders");
-        badordersWithPhotos.push({ order_number: bo.order_number, reason: bo.reason, photo: boPhotoUrl });
+      if (form.category === "Bad Order Log") {
+        for (const bo of (form.badorders || [])) {
+          if (!bo.order_number && !bo.reason && !bo.photo) continue;
+          let boPhotoUrl = null;
+          if (bo.photo) boPhotoUrl = await uploadPhoto(bo.photo, "badorders");
+          badordersWithPhotos.push({ order_number: bo.order_number, reason: bo.reason, photo: boPhotoUrl });
+        }
       }
 
       await sbFetch("/reports", {
@@ -292,7 +296,7 @@ export default function App() {
         `Hi ${form.gm},\n\nYour ${form.category} report has been received by the office.\n${form.applicant_name ? "Applicant: " + form.applicant_name + "\n" : ""}Details: ${form.details}\n\nYou will receive an email when the status is updated.\n\n- Team Next Level HR`
       );
 
-      setForm({ category: CATEGORIES[0], gm: "", details: "", applicant_name: "", license_plate: "", insurance_note: "", application_photo: null, insurance_photo: null });
+      setForm({ category: CATEGORIES[0], gm: "", details: "", applicant_name: "", license_plate: "", insurance_note: "", application_photo: null, insurance_photo: null, badorders: [{ order_number: "", reason: "", photo: null }] });
       setSubmitted(true);
       setTimeout(async () => {
         setSubmitted(false); setView("dashboard");

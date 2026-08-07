@@ -53,6 +53,21 @@ async function sbFetch(path, options = {}) {
   return text ? JSON.parse(text) : [];
 }
 
+async function sbRpc(fn, args) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
 async function uploadPhoto(file, folder) {
   const ext = file.name.split(".").pop();
   const filename = `${folder}/${Date.now()}.${ext}`;
@@ -71,28 +86,28 @@ async function uploadPhoto(file, folder) {
 }
 
 const STORE_ACCOUNTS = [
-  { id: "1736", name: "Store #1736", password: "Cube$$$2026" },
-  { id: "6412", name: "Store #6412", password: "Cube$$$2026" },
-  { id: "6427", name: "Store #6427", password: "Cube$$$2026" },
-  { id: "6432", name: "Store #6432", password: "Cube$$$2026" },
-  { id: "6444", name: "Store #6444", password: "Cube$$$2026" },
-  { id: "6448", name: "Store #6448", password: "Cube$$$2026" },
-  { id: "6460", name: "Store #6460", password: "Cube$$$2026" },
-  { id: "6469", name: "Store #6469", password: "Cube$$$2026" },
-  { id: "6471", name: "Store #6471", password: "Cube$$$2026" },
-  { id: "6472", name: "Store #6472", password: "Cube$$$2026" },
-  { id: "6473", name: "Store #6473", password: "Cube$$$2026" },
-  { id: "6474", name: "Store #6474", password: "Cube$$$2026" },
-  { id: "6475", name: "Store #6475", password: "Cube$$$2026" },
-  { id: "6478", name: "Store #6478", password: "Cube$$$2026" },
-  { id: "6485", name: "Store #6485", password: "Cube$$$2026" },
-  { id: "6486", name: "Store #6486", password: "Cube$$$2026" },
-  { id: "6488", name: "Store #6488", password: "Cube$$$2026" },
-  { id: "6490", name: "Store #6490", password: "Cube$$$2026" },
-  { id: "6498", name: "Store #6498", password: "Cube$$$2026" },
-  { id: "9656", name: "Store #9656", password: "Cube$$$2026" },
-  { id: "9658", name: "Store #9658", password: "Cube$$$2026" },
-  { id: "9664", name: "Store #9664", password: "Cube$$$2026" },
+  { id: "1736", name: "Store #1736" },
+  { id: "6412", name: "Store #6412" },
+  { id: "6427", name: "Store #6427" },
+  { id: "6432", name: "Store #6432" },
+  { id: "6444", name: "Store #6444" },
+  { id: "6448", name: "Store #6448" },
+  { id: "6460", name: "Store #6460" },
+  { id: "6469", name: "Store #6469" },
+  { id: "6471", name: "Store #6471" },
+  { id: "6472", name: "Store #6472" },
+  { id: "6473", name: "Store #6473" },
+  { id: "6474", name: "Store #6474" },
+  { id: "6475", name: "Store #6475" },
+  { id: "6478", name: "Store #6478" },
+  { id: "6485", name: "Store #6485" },
+  { id: "6486", name: "Store #6486" },
+  { id: "6488", name: "Store #6488" },
+  { id: "6490", name: "Store #6490" },
+  { id: "6498", name: "Store #6498" },
+  { id: "9656", name: "Store #9656" },
+  { id: "9658", name: "Store #9658" },
+  { id: "9664", name: "Store #9664" },
 ];
 
 const ADMIN_PASSWORD = "TNL$$$2026";
@@ -170,6 +185,11 @@ export default function App() {
   const [loginInput, setLoginInput]     = useState({ store: STORE_ACCOUNTS[0].id, password: "" });
   const [loginError, setLoginError]     = useState("");
   const [loginMode, setLoginMode]       = useState("store");
+  const [firstLogin, setFirstLogin]     = useState(null);
+  const [newPw, setNewPw]               = useState("");
+  const [confirmPw, setConfirmPw]       = useState("");
+  const [loginBusy, setLoginBusy]       = useState(false);
+  const [showPw, setShowPw]             = useState(false);
   const [view, setView]                 = useState("dashboard");
   const [submissions, setSubmissions]   = useState([]);
   const [loading, setLoading]           = useState(false);
@@ -203,7 +223,7 @@ export default function App() {
 
   useEffect(() => { if (session) loadReports(session); }, [session]);
 
-  function handleLogin() {
+  async function handleLogin() {
     setLoginError("");
     if (loginMode === "admin") {
       if (loginInput.password === ADMIN_PASSWORD) setSession({ type: "admin" });
@@ -211,8 +231,48 @@ export default function App() {
       return;
     }
     const store = STORE_ACCOUNTS.find(s => s.id === loginInput.store);
-    if (store && loginInput.password === store.password) setSession({ type: "store", store });
-    else setLoginError("Incorrect password for that store.");
+    if (!store) { setLoginError("Please select your store."); return; }
+    if (!loginInput.password) { setLoginError("Please enter your password."); return; }
+    setLoginBusy(true);
+    try {
+      const rows = await sbRpc("verify_store_login", { p_store_id: store.id, p_password: loginInput.password });
+      const r = Array.isArray(rows) ? rows[0] : rows;
+      if (!r || !r.valid) { setLoginError("Incorrect password for that store."); setLoginBusy(false); return; }
+      if (r.must_change) {
+        setFirstLogin({ store, tempPassword: loginInput.password });
+        setNewPw(""); setConfirmPw("");
+        setLoginBusy(false);
+        return;
+      }
+      setSession({ type: "store", store });
+    } catch (e) {
+      console.error(e);
+      setLoginError("Login failed — check your connection and try again.");
+    }
+    setLoginBusy(false);
+  }
+
+  async function handleSetPassword() {
+    setLoginError("");
+    if (newPw.length < 6) { setLoginError("New password must be at least 6 characters."); return; }
+    if (newPw !== confirmPw) { setLoginError("The two passwords don't match."); return; }
+    setLoginBusy(true);
+    try {
+      const ok = await sbRpc("set_store_password", { p_store_id: firstLogin.store.id, p_old_password: firstLogin.tempPassword, p_new_password: newPw });
+      if (ok === true) {
+        const store = firstLogin.store;
+        setFirstLogin(null);
+        setLoginInput(p => ({ ...p, password: "" }));
+        setNewPw(""); setConfirmPw("");
+        setSession({ type: "store", store });
+      } else {
+        setLoginError("Could not set your password. Please try again.");
+      }
+    } catch (e) {
+      console.error(e);
+      setLoginError("Could not set your password — check your connection.");
+    }
+    setLoginBusy(false);
   }
 
   async function submitReport() {
@@ -388,6 +448,28 @@ export default function App() {
         <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>Domino's Pizza</div>
       </div>
       <div style={{ width: "100%", maxWidth: 380, background: "#2a2a2a", borderRadius: 16, padding: 24, border: "1px solid #3a3a3a" }}>
+        {firstLogin ? (<>
+          <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 6 }}>Set your store password</div>
+          <div style={{ fontSize: 12, color: "#aaa", marginBottom: 18 }}>{firstLogin.store.name} — first time signing in. Create a password only your store will know. You'll use it every time after this.</div>
+          <label style={labelStyle}>New Password</label>
+          <div style={{ position: "relative", marginBottom: 14 }}>
+            <input type={showPw ? "text" : "password"} placeholder="New password" value={newPw}
+              onChange={e => setNewPw(e.target.value)} style={{ ...inputStyle, marginBottom: 0, paddingRight: 44 }} />
+            <button type="button" onClick={() => setShowPw(v => !v)} aria-label="Show or hide password"
+            style={{ position: "absolute", right: 10, top: 9, background: "transparent", border: "none", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4, color: "#888" }}>{showPw ? "🙈" : "👁"}</button>
+          </div>
+          <label style={labelStyle}>Confirm Password</label>
+          <div style={{ position: "relative", marginBottom: 14 }}>
+            <input type={showPw ? "text" : "password"} placeholder="Re-enter password" value={confirmPw}
+              onChange={e => setConfirmPw(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSetPassword()} style={{ ...inputStyle, marginBottom: 0, paddingRight: 44 }} />
+            <button type="button" onClick={() => setShowPw(v => !v)} aria-label="Show or hide password"
+            style={{ position: "absolute", right: 10, top: 9, background: "transparent", border: "none", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4, color: "#888" }}>{showPw ? "🙈" : "👁"}</button>
+          </div>
+          {loginError && <div style={{ color: "#e31837", fontSize: 13, marginBottom: 12, fontWeight: 600 }}>{loginError}</div>}
+          <button onClick={handleSetPassword} disabled={loginBusy} style={btnRed}>{loginBusy ? "Saving…" : "Save & Continue"}</button>
+          <button onClick={() => { setFirstLogin(null); setLoginError(""); }} style={{ ...btnRed, background: "transparent", color: "#888", marginTop: 8 }}>Cancel</button>
+        </>) : (<>
         <div style={{ display: "flex", background: "#1a1a1a", borderRadius: 10, padding: 4, marginBottom: 20 }}>
           {["store", "admin"].map(m => (
             <button key={m} onClick={() => { setLoginMode(m); setLoginError(""); }}
@@ -403,11 +485,16 @@ export default function App() {
           </select>
         </>}
         <label style={labelStyle}>Password</label>
-        <input type="password" placeholder="Enter password" value={loginInput.password}
-          onChange={e => setLoginInput(p => ({ ...p, password: e.target.value }))}
-          onKeyDown={e => e.key === "Enter" && handleLogin()} style={inputStyle} />
+        <div style={{ position: "relative", marginBottom: 14 }}>
+          <input type={showPw ? "text" : "password"} placeholder="Enter password" value={loginInput.password}
+            onChange={e => setLoginInput(p => ({ ...p, password: e.target.value }))}
+            onKeyDown={e => e.key === "Enter" && handleLogin()} style={{ ...inputStyle, marginBottom: 0, paddingRight: 44 }} />
+          <button type="button" onClick={() => setShowPw(v => !v)} aria-label="Show or hide password"
+            style={{ position: "absolute", right: 10, top: 9, background: "transparent", border: "none", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4, color: "#888" }}>{showPw ? "🙈" : "👁"}</button>
+        </div>
         {loginError && <div style={{ color: "#e31837", fontSize: 13, marginBottom: 12, fontWeight: 600 }}>{loginError}</div>}
-        <button onClick={handleLogin} style={btnRed}>Sign In</button>
+        <button onClick={handleLogin} disabled={loginBusy} style={btnRed}>{loginBusy ? "Signing in…" : "Sign In"}</button>
+        </>)}
       </div>
       <div style={{ marginTop: 18, fontSize: 12, color: "#555", textAlign: "center", maxWidth: 300 }}>
         Contact your admin if you need your store password.

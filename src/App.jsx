@@ -25,6 +25,11 @@ async function sendEmail(to, subject, message) {
         subject: subject,
         message: message,
         from_name: "Dominos GM Reports",
+        name: "Dominos GM Reports",
+        time: new Date().toLocaleString(),
+        email: HR_EMAIL,
+        title: subject,
+        reply_to: HR_EMAIL,
       },
     };
     const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
